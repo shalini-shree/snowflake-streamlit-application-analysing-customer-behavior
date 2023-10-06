@@ -326,6 +326,276 @@ def fetch_query3D(year,top,month):
         connection.close()
         engine.dispose()
 
+#fetch query 7
+def fetch_query7(state_params, education_status, marital_status, gender, year):
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(
+            user=os.environ.get('user'),
+            password=os.environ.get('password'),
+            account_identifier=os.environ.get('account_identifier'),
+        )
+    )
+    connection = engine.connect()
+    try:
+        # Ensure that state_params is not empty
+        if not state_params:
+            raise ValueError("No states provided in state_params")
+
+        # Define the parameters in the query
+        state_params_str = ', '.join([f"'{state}'" for state in state_params])
+        query = f"""
+            SELECT  i_item_id,
+                    s_state, grouping(s_state) g_state,
+                    avg(ss_quantity) agg1,
+                    avg(ss_list_price) agg2,
+                    avg(ss_coupon_amt) agg3,
+                    avg(ss_sales_price) agg4
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales, 
+                 {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer_demographics, 
+                 {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim, 
+                 {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store, 
+                 {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.item
+            WHERE ss_sold_date_sk = d_date_sk AND
+                  ss_item_sk = i_item_sk AND
+                  ss_store_sk = s_store_sk AND
+                  ss_cdemo_sk = cd_demo_sk AND
+                  cd_gender = '{gender}' AND
+                  cd_marital_status = '{marital_status}' AND
+                  cd_education_status = '{education_status}' AND
+                  d_year = {year} AND
+                  s_state IN ({state_params_str})
+            GROUP BY ROLLUP (i_item_id, s_state)
+            ORDER BY i_item_id, s_state
+            LIMIT 100;
+        """
+        results = pd.read_sql(query, connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
+
+#fetch query 8
+def fetch_query8(wholesalecost_params, couponamt_params, listprice_params):
+    # Snowflake connection parameters
+    snowflake_params = {
+        "user": os.getenv('user'),
+        "password": os.getenv('password'),
+        "account_identifier": os.environ.get('account_identifier'),
+    }
+
+    # Create a Snowflake engine
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(**snowflake_params)
+    )
+    connection = engine.connect()
+    try:
+        query = f"""
+        SELECT *
+        FROM (
+            SELECT
+                AVG(ss_list_price) AS B1_LP,
+                COUNT(ss_list_price) AS B1_CNT,
+                COUNT(DISTINCT ss_list_price) AS B1_CNTD
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+            WHERE (ss_list_price BETWEEN {listprice_params[0]} AND {listprice_params[0]} + 10
+                OR ss_coupon_amt BETWEEN {couponamt_params[0]} AND {couponamt_params[0]} + 1000
+                OR ss_wholesale_cost BETWEEN {wholesalecost_params[0]} AND {wholesalecost_params[0]} + 20)
+        ) B1,
+        (
+            SELECT
+                AVG(ss_list_price) AS B2_LP,
+                COUNT(ss_list_price) AS B2_CNT,
+                COUNT(DISTINCT ss_list_price) AS B2_CNTD
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+            WHERE (ss_list_price BETWEEN {listprice_params[1]} AND {listprice_params[1]} + 10
+                OR ss_coupon_amt BETWEEN {couponamt_params[1]} AND {couponamt_params[1]} + 1000
+                OR ss_wholesale_cost BETWEEN {wholesalecost_params[1]} AND {wholesalecost_params[1]} + 20)
+        ) B2,
+        (
+            SELECT
+                AVG(ss_list_price) AS B3_LP,
+                COUNT(ss_list_price) AS B3_CNT,
+                COUNT(DISTINCT ss_list_price) AS B3_CNTD
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+            WHERE (ss_list_price BETWEEN {listprice_params[2]} AND {listprice_params[2]} + 10
+                OR ss_coupon_amt BETWEEN {couponamt_params[2]} AND {couponamt_params[2]} + 1000
+                OR ss_wholesale_cost BETWEEN {wholesalecost_params[2]} AND {wholesalecost_params[2]} + 20)
+        ) B3,
+        (
+            SELECT
+                AVG(ss_list_price) AS B4_LP,
+                COUNT(ss_list_price) AS B4_CNT,
+                COUNT(DISTINCT ss_list_price) AS B4_CNTD
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+            WHERE (ss_list_price BETWEEN {listprice_params[3]} AND {listprice_params[3]} + 10
+                OR ss_coupon_amt BETWEEN {couponamt_params[3]} AND {couponamt_params[3]} + 1000
+                OR ss_wholesale_cost BETWEEN {wholesalecost_params[3]} AND {wholesalecost_params[3]} + 20)
+        ) B4,
+        (
+            SELECT
+                AVG(ss_list_price) AS B5_LP,
+                COUNT(ss_list_price) AS B5_CNT,
+                COUNT(DISTINCT ss_list_price) AS B5_CNTD
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+            WHERE (ss_list_price BETWEEN {listprice_params[4]} AND {listprice_params[4]} + 10
+                OR ss_coupon_amt BETWEEN {couponamt_params[4]} AND {couponamt_params[4]} + 1000
+                OR ss_wholesale_cost BETWEEN {wholesalecost_params[4]} AND {wholesalecost_params[4]} + 20)
+        ) B5,
+        (
+            SELECT
+                AVG(ss_list_price) AS B6_LP,
+                COUNT(ss_list_price) AS B6_CNT,
+                COUNT(DISTINCT ss_list_price) AS B6_CNTD
+            FROM {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+            WHERE (ss_list_price BETWEEN {listprice_params[5]} AND {listprice_params[5]} + 10
+                OR ss_coupon_amt BETWEEN {couponamt_params[5]} AND {couponamt_params[5]} + 1000
+                OR ss_wholesale_cost BETWEEN {wholesalecost_params[5]} AND {wholesalecost_params[5]} + 20)
+        ) B6
+        LIMIT 100;
+        """
+        results = pd.read_sql(query, connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
+
+
+#fetch query 9
+def fetch_query9(month, year, aggregator):
+    # Define a dictionary to map aggregator names to SQL functions
+    aggregator_mapping = {
+        "SUM": "SUM",
+        "MIN": "MIN",
+        "MAX": "MAX"
+    }
+
+    # Check if the provided aggregator is valid
+    if aggregator not in aggregator_mapping:
+        raise ValueError("Invalid aggregator. Supported aggregators: SUM, MIN, MAX")
+
+    # Get the corresponding SQL function
+    sql_aggregator = aggregator_mapping[aggregator]
+
+    # Snowflake connection parameters
+    snowflake_params = {
+        "user": os.getenv('user'),
+        "password": os.getenv('password'),
+        "account_identifier": os.environ.get('account_identifier'),
+    }
+
+    # Create a Snowflake engine
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(**snowflake_params)
+    )
+    connection = engine.connect()
+    try:
+        query = f"""
+        SELECT
+            i.i_item_id,
+            i.i_item_desc,
+            s.s_store_id,
+            s.s_store_name,
+            {sql_aggregator}(ss.ss_quantity) AS store_sales_aggregator,
+            {sql_aggregator}(sr.sr_return_quantity) AS store_returns_aggregator,
+            {sql_aggregator}(cs.cs_quantity) AS catalog_sales_aggregator
+        FROM
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales ss
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim d1 ON ss.ss_sold_date_sk = d1.d_date_sk
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_returns sr ON ss.ss_customer_sk = sr.sr_customer_sk
+                AND ss.ss_item_sk = sr.sr_item_sk
+                AND ss.ss_ticket_number = sr.sr_ticket_number
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.catalog_sales cs ON sr.sr_customer_sk = cs.cs_bill_customer_sk
+                AND sr.sr_item_sk = cs.cs_item_sk
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim d2 ON sr.sr_returned_date_sk = d2.d_date_sk
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim d3 ON cs.cs_sold_date_sk = d3.d_date_sk
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store s ON ss.ss_store_sk = s.s_store_sk
+        JOIN
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.item i ON ss.ss_item_sk = i.i_item_sk
+        WHERE
+            d1.d_moy = {month}
+            AND d1.d_year = {year}
+            AND d2.d_moy BETWEEN {month} AND {month} + 6
+            AND d2.d_year = {year}
+            AND d3.d_year IN ({year}, {year+1}, {year+2})
+        GROUP BY
+            i.i_item_id,
+            i.i_item_desc,
+            s.s_store_id,
+            s.s_store_name
+        ORDER BY
+            i.i_item_id,
+            i.i_item_desc,
+            s.s_store_id,
+            s.s_store_name
+        LIMIT 100;
+        """
+        results = pd.read_sql(query, connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
+
+        
+
+
+#fetch query 10
+def fetch_query10(year, state):
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(
+            user=os.getenv('user'),
+            password=os.getenv('password'),
+            account_identifier=os.environ.get('account_identifier'),
+        )
+    )
+    connection = engine.connect()
+    try:
+        # Add a WHERE clause to the subquery to filter by the specified state
+        query = f"""
+        with customer_total_return as
+            (select wr_returning_customer_sk as ctr_customer_sk
+            ,ca_state as ctr_state, 
+ 	        sum(wr_return_amt) as ctr_total_return
+        from {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.web_returns
+            ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim
+            ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer_address
+        where wr_returned_date_sk = d_date_sk 
+            and d_year = {year}
+            and wr_returning_addr_sk = ca_address_sk 
+            and ca_state = '{state}'  -- Add the WHERE clause here
+        group by wr_returning_customer_sk
+            ,ca_state)
+        select  c_customer_id,c_salutation,c_first_name,c_last_name,c_preferred_cust_flag
+            ,c_birth_day,c_birth_month,c_birth_year,c_birth_country,c_login,c_email_address
+            ,c_last_review_date,ctr_state,ctr_total_return  -- Include ctr_state here
+        from customer_total_return ctr1
+            ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer_address
+            ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer
+        where ctr1.ctr_total_return > (select avg(ctr_total_return)*1.2
+ 	    from customer_total_return ctr2 
+        where ctr1.ctr_state = ctr2.ctr_state)
+            and ca_address_sk = c_current_addr_sk
+            and ca_state = '{state}'
+            and ctr1.ctr_customer_sk = c_customer_sk
+        order by c_customer_id,c_salutation,c_first_name,c_last_name,c_preferred_cust_flag
+            ,c_birth_day,c_birth_month,c_birth_year,c_birth_country,c_login,c_email_address
+            ,c_last_review_date,ctr_state,ctr_total_return  -- Include ctr_state here
+        limit 100;
+      """
+        results = pd.read_sql(query, connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
 def plot_query_1(data):
     fig = px.bar(data,x='w_warehouse_name',y='perc', color='i_item_id',
                  title="Query1 visualisation")
@@ -362,11 +632,103 @@ def plot_query_3D(data):
     fig.update_layout(width=800,height=700,xaxis_title='Customer ID',yaxis_title='Catalog and Web Sales by Best Customer')
     st.plotly_chart(fig)
 
+#plot query 7
+def plot_query_7(data):
+    # Filter out rows with missing or invalid values
+    data = data.dropna(subset=['i_item_id', 'agg1', 's_state'])
 
+    if data.empty:
+        st.warning("No valid data to visualize.")
+        return
 
+    # Create separate bar charts for each aggregation
+    fig_agg1 = px.bar(data, x='i_item_id', y='agg1', color='s_state',
+                      title=" Average Quantity by Item and State",
+                      labels={'i_item_id': 'Item ID', 'agg1': 'Average Quantity'})
+
+    fig_agg2 = px.bar(data, x='i_item_id', y='agg2', color='s_state',
+                      title="Average List Price by Item and State",
+                      labels={'i_item_id': 'Item ID', 'agg2': 'Average List Price'})
+
+    fig_agg3 = px.bar(data, x='i_item_id', y='agg3', color='s_state',
+                      title="Average Coupon Amount by Item and State",
+                      labels={'i_item_id': 'Item ID', 'agg3': 'Average Coupon Amount'})
+
+    fig_agg4 = px.bar(data, x='i_item_id', y='agg4', color='s_state',
+                      title="Average Sales Price by Item and State",
+                      labels={'i_item_id': 'Item ID', 'agg4': 'Average Sales Price'})
+
+    # Display the charts
+    st.plotly_chart(fig_agg1)
+    st.plotly_chart(fig_agg2)
+    st.plotly_chart(fig_agg3)
+    st.plotly_chart(fig_agg4)
+
+#plot query 8
+def plot_query8(data):
+    # Check if the required columns exist in the DataFrame
+    required_columns = ["B1_LP", "B2_LP", "B3_LP", "B4_LP", "B5_LP", "B6_LP"]
+    
+    # Check if all required columns are present in the DataFrame
+    if all(col in data.columns for col in required_columns):
+        for i in range(1, 7):
+            column_name = f"B{i}_LP"
+            fig = px.bar(data, x=[f"B{i}"], y=column_name, title=f"Bar Chart for {column_name}")
+            st.plotly_chart(fig)
+    else:
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        st.error(f"Required columns {missing_columns} not found in the results.")
+
+#plot query 9
+def plot_query9(data, aggregator):
+    # Define a custom aggregation function
+    def custom_aggregator(x):
+        if aggregator == "SUM":
+            return np.sum(x)
+        elif aggregator == "MIN":
+            return np.min(x)
+        elif aggregator == "MAX":
+            return np.max(x)
+    
+    # Group by store name and apply the custom aggregation
+    grouped_data = data.groupby('s_store_name').agg({
+        'store_sales_aggregator': custom_aggregator,
+        'store_returns_aggregator': custom_aggregator
+    }).reset_index()
+    
+    # Rename the columns with the custom aggregator function
+    grouped_data.rename(columns={
+        'store_sales_aggregator': f'{aggregator} Sales',
+        'store_returns_aggregator': f'{aggregator} Returns'
+    }, inplace=True)
+    
+    # Create a bar chart
+    fig = px.bar(grouped_data, x='s_store_name', y=[f'{aggregator} Sales', f'{aggregator} Returns'],
+                 color_discrete_sequence=['blue', 'red'], title=f'{aggregator} Sales and Returns by Store')
+    
+    # Customize the chart layout
+    fig.update_layout(xaxis_title='Store Name', yaxis_title=f'{aggregator} Sales/Returns',
+                      legend_title='Legend')
+    
+    # Display the chart
+    st.plotly_chart(fig)
+
+def plot_query10(data, state):
+    # Filter the data for the specified state
+    filtered_data = data[data['ctr_state'] == state]
+
+    # Create a histogram of total returns
+    fig = px.histogram(filtered_data, x='ctr_total_return', nbins=30,
+                       title=f'Distribution of Total Returns for Customers in {state}')
+    # Customize the chart layout
+    fig.update_layout(xaxis_title='Total Returns', yaxis_title='Count')
+    # Display the chart
+    st.plotly_chart(fig)
+
+#stream deployment code
 st.set_page_config(layout='wide')
 st.title("Dashboard")
-querylist = ["Query1","Query2","Query3"]
+querylist = ["Query1","Query2","Query3","Query7","Query8","Query9","Query10"]
 
 with st.sidebar:
     query_output = st.selectbox("Choose the query: ",querylist)
@@ -406,7 +768,68 @@ with c1:
             st.write("Maximum Store Sales in period of 4 consecutive years",results2)
             st.write("Best Store Customers",results3)
             st.write("Compute the Total Web and Catalog sales in a Selected Month-Year by Best Store Customers",finalres)
-            
+    elif query_output == "Query7":
+        # Display the Streamlit inputs
+        st.title("Query 7")
+        state_params = st.multiselect("Select States:", ["TN", "SD", "OH", "NM", "MI", "TX"]) or ["default_state"]
+        education_status = st.selectbox("Select Education Status:", ["Primary", "Secondary", "College", "2 yr Degree", "4 yr Degree", "Unknown"])
+        marital_status = st.selectbox("Select Marital Status:", ["M", "S", "D", "W", "U"])
+        gender = st.selectbox("Select Gender:", ["F", "M"])
+        year = st.number_input("Enter Year:", 2000)
+        results = fetch_query7(state_params, education_status, marital_status, gender, year)
+        st.write("Query Results:")
+        st.write(results)
+        if results.empty:
+            st.warning("Choose the correct value. No Visualisation available for chosen value.")  # Define an empty DataFrame or provide a default value
+    elif query_output == "Query8":
+        # Display the Streamlit inputs
+        st.title("Query 8")
+        wholesalecost_params = st.text_input("Enter values for WHOLESALECOST :")
+        couponamt_params = st.text_input("Enter values for COUPONAMT :")
+        listprice_params = st.text_input("Enter values for LISTPRICE :")
+        try:
+            # Split the user input into a list of values and convert to integers
+            wholesalecost_values = [int(val.strip()) for val in wholesalecost_params.split(',')]
+            couponamt_values = [int(val.strip()) for val in couponamt_params.split(',')]
+            listprice_values = [int(val.strip()) for val in listprice_params.split(',')]
+
+            # Call the fetch_query8 function with parameter values
+            results = fetch_query8(wholesalecost_values, couponamt_values, listprice_values)
+
+            # Display the results
+            st.write("Query Results:")
+            st.write(results)
+            if results.empty:
+                st.warning("No results found for the given parameter values.")
+        except ValueError:
+            st.error("Invalid input. Please enter integer values separated by commas.")
+    elif query_output == "Query9":
+    # Display the Streamlit inputs
+        st.title("Query 9")
+        month = st.number_input("Enter MONTH:", min_value=1, max_value=12, step=1)
+        year = st.number_input("Enter YEAR:", min_value=2000)
+        aggregator = st.selectbox("Select Aggregator:", ["SUM", "MIN", "MAX"])
+
+    # Automatically execute the query when any input changes
+        results = fetch_query9(month, year, aggregator)
+    # Display the results
+        st.write("Query Results:")
+        st.write(results)
+        if results.empty:
+            st.warning("No results found for the given parameter values.")
+    # Call the plot_query9 function to generate and display the visualization
+    elif query_output == "Query10":
+        year = st.text_input("Enter YEAR:", key="year_input")  # Unique key for year input
+        state = st.text_input("Enter STATE:", key="state_input")  # Unique key for state input
+
+    # Check if the inputs are provided
+        if year and state:
+        # Call the fetch_query10 function with parameter values
+            results = fetch_query10(year, state)
+            st.write("Query Results:")
+            st.write(results)
+            if results.empty:
+                st.warning("No results found for the given parameters.")       
 with c2:
     if query_output == "Query1":
         plot_query_1(results)
@@ -417,3 +840,31 @@ with c2:
         plot_query_3B(results2)
         plot_query_3C(results3)
         plot_query_3D(finalres)
+    elif query_output == "Query7":
+        # Check if results are defined
+        if 'results' in locals() and not results.empty:
+            # Plot the query results
+            plot_query_7(results)
+        else:
+            st.warning("No results to visualize. Please execute the query in the 'Data' tab first.")
+    elif query_output == "Query8":
+        # Check if results8 are defined
+        if 'results' in locals() and not results.empty:
+            # Plot the query results
+            plot_query8(results)
+        else:
+            st.warning("No results to visualize. Please execute the query in the 'Data' tab first.")
+    elif query_output == "Query9":
+        # Check if results are defined
+        if 'results' in locals() and not results.empty:
+            # Plot the query results
+            plot_query9(results, aggregator)
+        else:
+            st.warning("No results to visualize. Please execute the query in the 'Data' tab first.")
+    elif query_output == "Query10":
+        # Check if results are defined
+        if 'results' in locals() and not results.empty:
+            # Plot the query results
+            plot_query10(results, state)
+        else:
+            st.warning("No results to visualize. Please execute the query in the 'Data' tab first.")
