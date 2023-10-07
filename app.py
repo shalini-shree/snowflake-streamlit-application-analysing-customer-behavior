@@ -326,6 +326,255 @@ def fetch_query3D(year,top,month):
         connection.close()
         engine.dispose()
 
+def fetch_query4a(market_id):
+
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(
+            user=os.getenv('user'),
+            password=os.getenv('password'),
+            account_identifier=os.environ.get('account_identifier')
+        )
+    )
+    connection = engine.connect()
+    try:
+        query = f"""
+        with ssales as
+(select c_last_name
+      ,c_first_name
+      ,s_store_name
+      ,ca_state
+      ,s_state
+      ,i_color
+      ,i_current_price
+      ,i_manager_id
+      ,i_units
+      ,i_size
+      ,sum(ss_net_paid_inc_tax) netpaid
+from {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_returns
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.item
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer_address
+where ss_ticket_number = sr_ticket_number
+  and ss_item_sk = sr_item_sk
+  and ss_customer_sk = c_customer_sk
+  and ss_item_sk = i_item_sk
+  and ss_store_sk = s_store_sk
+  and c_current_addr_sk = ca_address_sk
+  and c_birth_country <> upper(ca_country)
+  and s_zip = ca_zip
+and s_market_id={market_id}
+group by c_last_name
+        ,c_first_name
+        ,s_store_name
+        ,ca_state
+        ,s_state
+        ,i_color
+        ,i_current_price
+        ,i_manager_id
+        ,i_units
+        ,i_size)
+select c_last_name
+      ,c_first_name
+      ,s_store_name
+      ,sum(netpaid) paid
+from ssales
+where i_color = 'cornsilk'
+group by c_last_name
+        ,c_first_name
+        ,s_store_name
+having sum(netpaid) > (select 0.05*avg(netpaid)
+                                 from ssales)
+order by c_last_name
+        ,c_first_name
+        ,s_store_name
+;
+
+        """
+        results = pd.read_sql(query,connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
+def fetch_query4b(market_id):
+
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(
+            user=os.getenv('user'),
+            password=os.getenv('password'),
+            account_identifier=os.environ.get('account_identifier'),
+        )
+    )
+    connection = engine.connect()
+    try:
+        query = f"""
+        with ssales as
+(select c_last_name
+      ,c_first_name
+      ,s_store_name
+      ,ca_state
+      ,s_state
+      ,i_color
+      ,i_current_price
+      ,i_manager_id
+      ,i_units
+      ,i_size
+      ,sum(ss_net_paid_inc_tax) netpaid
+from {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_returns
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.item
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer
+    ,{PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer_address
+where ss_ticket_number = sr_ticket_number
+  and ss_item_sk = sr_item_sk
+  and ss_customer_sk = c_customer_sk
+  and ss_item_sk = i_item_sk
+  and ss_store_sk = s_store_sk
+  and c_current_addr_sk = ca_address_sk
+  and c_birth_country <> upper(ca_country)
+  and s_zip = ca_zip
+and s_market_id={market_id}
+group by c_last_name
+        ,c_first_name
+        ,s_store_name
+        ,ca_state
+        ,s_state
+        ,i_color
+        ,i_current_price
+        ,i_manager_id
+        ,i_units
+        ,i_size)
+select c_last_name
+      ,c_first_name
+      ,s_store_name
+      ,sum(netpaid) paid
+from ssales
+where i_color = 'lime'
+group by c_last_name
+        ,c_first_name
+        ,s_store_name
+having sum(netpaid) > (select 0.05*avg(netpaid)
+                                 from ssales)
+order by c_last_name
+        ,c_first_name
+        ,s_store_name
+;
+
+        """
+        results = pd.read_sql(query,connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
+def fetch_query5(month, year):
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(
+            user=os.getenv('user'),
+            password=os.getenv('password'),
+            account_identifier=os.environ.get('account_identifier'),
+        )
+    )
+    connection = engine.connect()
+    try:
+        query = f"""
+        SELECT
+            i_item_id,
+            i_item_desc,
+            s_store_id,
+            s_store_name,
+            MIN(ss_net_profit) AS store_sales_profit,
+            MIN(sr_net_loss) AS store_returns_loss,
+            MIN(cs_net_profit) AS catalog_sales_profit
+        FROM
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_sales,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store_returns,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.catalog_sales,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim d1,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim d2,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim d3,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.store,
+            {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.item
+        WHERE
+            d1.d_moy = {month}
+            AND d1.d_year = {year}
+            AND d1.d_date_sk = ss_sold_date_sk
+            AND i_item_sk = ss_item_sk
+            AND s_store_sk = ss_store_sk
+            AND ss_customer_sk = sr_customer_sk
+            AND ss_item_sk = sr_item_sk
+            AND ss_ticket_number = sr_ticket_number
+            AND sr_returned_date_sk = d2.d_date_sk
+            AND d2.d_moy BETWEEN {month} AND {month + 6}
+            AND d2.d_year = {year}
+            AND sr_customer_sk = cs_bill_customer_sk
+            AND sr_item_sk = cs_item_sk
+            AND cs_sold_date_sk = d3.d_date_sk
+            AND d3.d_moy BETWEEN {month} AND {month + 6}
+            AND d3.d_year = {year}
+        GROUP BY
+            i_item_id,
+            i_item_desc,
+            s_store_id,
+            s_store_name
+        ORDER BY
+            i_item_id,
+            i_item_desc,
+            s_store_id,
+            s_store_name
+        LIMIT 100;
+        """
+        results = pd.read_sql(query, connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
+
+def fetch_query6(gender, cdms, cdes, year):
+
+    engine = create_engine(
+        'snowflake://{user}:{password}@{account_identifier}/'.format(
+            user=os.getenv('user'),
+            password=os.getenv('password'),
+            account_identifier=os.environ.get('account_identifier'),
+        )
+    )
+    connection = engine.connect()
+    try:
+        query = f"""
+        select  i_item_id, 
+    avg(cs_quantity) agg1,
+    avg(cs_list_price) agg2,
+    avg(cs_coupon_amt) agg3,
+    avg(cs_sales_price) agg4 
+    from {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.catalog_sales, 
+         {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.customer_demographics,
+         {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.date_dim, 
+         {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.item, 
+         {PARENT_DATABASE_NAME}.{NESTED_DATABASE}.promotion
+     where cs_sold_date_sk = d_date_sk and
+           cs_item_sk = i_item_sk and
+           cs_bill_cdemo_sk = cd_demo_sk and
+           cs_promo_sk = p_promo_sk and
+           cd_gender = '{gender}' and 
+           cd_marital_status = '{cdms}' and
+           cd_education_status = '{cdes}' and
+           (p_channel_email = 'N' or p_channel_event = 'N') and
+           d_year = {year} 
+     group by i_item_id
+     order by i_item_id
+     limit 100;
+ """
+        results = pd.read_sql(query,connection)
+        return results
+    finally:
+        connection.close()
+        engine.dispose()
+
 #fetch query 7
 def fetch_query7(state_params, education_status, marital_status, gender, year):
     engine = create_engine(
@@ -632,6 +881,46 @@ def plot_query_3D(data):
     fig.update_layout(width=800,height=700,xaxis_title='Customer ID',yaxis_title='Catalog and Web Sales by Best Customer')
     st.plotly_chart(fig)
 
+def plot_query_4a(results):
+    # check for NaN values and drop rows with NaN values
+    results = results.dropna()
+
+    #check if the dataframe is empty after dropping NaN rows
+    if results.empty:
+        st.warning("No data available for Plotting.")
+        return
+    
+    fig = px.bar(results, x='s_store_name', y='paid', color='c_last_name',
+    title="Query4a visualisation")
+    fig.update_layout(width=400,height=500,xaxis_title='s_store_name',yaxis_title='paid')
+    st.plotly_chart(fig)
+
+def plot_query_4b(results):
+        # check for NaN values and drop rows with NaN values
+    results = results.dropna()
+
+    #check if the dataframe is empty after dropping NaN rows
+    if results.empty:
+        st.warning("No data available for Plotting.")
+        return
+    
+    fig = px.bar(results,x='s_store_name',y='paid', color='c_last_name',
+    title="Query4b visualisation")
+    fig.update_layout(width=400,height=500,xaxis_title='s_store_name',yaxis_title='paid')
+    st.plotly_chart(fig)
+
+def plot_query_5(data):
+    fig = px.bar(data, x='i_item_id', y=['store_sales_profit', 'store_returns_loss', 'catalog_sales_profit'],
+    title="Query 5 Visualization")
+    fig.update_layout(width=800, height=500, xaxis_title='i_item_id', yaxis_title='Store Revenue')
+    st.plotly_chart(fig)
+
+def plot_query_6(data):
+    fig = px.bar(data, x='i_item_id', y=['agg1', 'agg2', 'agg3', 'agg4'],
+    title="Query 6 Visualization")
+    fig.update_layout(width=800, height=500, xaxis_title='i_item_id', yaxis_title='Average Values')
+    st.plotly_chart(fig)
+
 #plot query 7
 def plot_query_7(data):
     # Filter out rows with missing or invalid values
@@ -728,7 +1017,7 @@ def plot_query10(data, state):
 #stream deployment code
 st.set_page_config(layout='wide')
 st.title("Dashboard")
-querylist = ["Query1","Query2","Query3","Query7","Query8","Query9","Query10"]
+querylist = ["Query1","Query2","Query3","Query4a", "Query4b","Query5","Query6","Query7","Query8","Query9","Query10"]
 
 with st.sidebar:
     query_output = st.selectbox("Choose the query: ",querylist)
@@ -768,6 +1057,54 @@ with c1:
             st.write("Maximum Store Sales in period of 4 consecutive years",results2)
             st.write("Best Store Customers",results3)
             st.write("Compute the Total Web and Catalog sales in a Selected Month-Year by Best Store Customers",finalres)
+    
+    elif query_output == "Query4a":
+    # Display the Streamlit inputs and execute the query
+        st.title("Query 4a")
+        market_id = st.number_input("Enter Market ID:")
+        results = fetch_query4a(market_id)
+
+        # Display the results
+        if results.empty:
+                st.warning("No Visualisation available for chosen value.")
+        else:
+                st.write(results)
+    
+    elif query_output == "Query4b":
+        st.title("Query 4b")
+        market_id = st.number_input("Enter Market ID for Query 4b:")
+        results = fetch_query4b(market_id)
+        if results.empty:
+                st.warning("No Visualisation available for chosen value.")
+        else:
+            st.write(results)
+    
+    elif query_output == "Query5":
+    # Display the Streamlit inputs and execute Query 5
+        st.title("Query 5")
+        month = st.slider("Select Month", 1, 12, 4)
+        year = st.number_input("Enter Year", 2000, 2100, 2002)
+    # Fetch and display Query 5 results
+        results = fetch_query5(month, year)
+    # Display the results
+        if results.empty:
+            st.warning("No results available for the chosen criteria.")
+        else:
+            st.write(results)
+    
+    elif query_output == "Query6":
+        # Display the Streamlit inputs and execute the query
+        st.title("Query 6")
+        cdes = st.selectbox("Select Education Status:", ["Primary","Secondary","College","2 yr Degree","4 yr Degree","Unknown"])
+        cdms = st.selectbox("Select Marital Status:", ["M", "S", "D", "W", "U"])
+        gender = st.selectbox("Select Gender:", ["F", "M"])
+        year = st.number_input("Enter Year:", 2000)
+        results = fetch_query6(gender, cdms, cdes, year)
+        st.write("Query Results:")
+        st.write(results)
+        if results.empty:
+            st.warning("Choose the correct value. No Visualisation available for chosen value.")
+
     elif query_output == "Query7":
         # Display the Streamlit inputs
         st.title("Query 7")
@@ -840,6 +1177,14 @@ with c2:
         plot_query_3B(results2)
         plot_query_3C(results3)
         plot_query_3D(finalres)
+    elif query_output == "Query4a":
+        plot_query_4a(results)
+    elif query_output == "Query4b":
+        plot_query_4b(results) 
+    elif query_output == "Query5":
+        plot_query_5(results)
+    elif query_output == "Query6":
+        plot_query_6(results)
     elif query_output == "Query7":
         # Check if results are defined
         if 'results' in locals() and not results.empty:
