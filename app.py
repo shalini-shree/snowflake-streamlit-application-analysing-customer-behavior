@@ -6,6 +6,7 @@ import pandas as pd
 import os
 import plotly.express  as px
 import datetime as dt
+import numpy as np
 
 load_dotenv()
 
@@ -953,20 +954,48 @@ def plot_query_7(data):
     st.plotly_chart(fig_agg3)
     st.plotly_chart(fig_agg4)
 
-#plot query 8
 def plot_query8(data):
     # Check if the required columns exist in the DataFrame
-    required_columns = ["B1_LP", "B2_LP", "B3_LP", "B4_LP", "B5_LP", "B6_LP"]
-    
+    required_columns = ["b1_lp", "b2_lp", "b3_lp", "b4_lp", "b5_lp", "b6_lp",
+                        "b1_cnt", "b2_cnt", "b3_cnt", "b4_cnt", "b5_cnt", "b6_cnt",
+                        "b1_cntd", "b2_cntd", "b3_cntd", "b4_cntd", "b5_cntd", "b6_cntd"]
+
     # Check if all required columns are present in the DataFrame
     if all(col in data.columns for col in required_columns):
+        # Create a list to store DataFrames for each bucket
+        aggregated_data_list = []
+        
         for i in range(1, 7):
-            column_name = f"B{i}_LP"
-            fig = px.bar(data, x=[f"B{i}"], y=column_name, title=f"Bar Chart for {column_name}")
-            st.plotly_chart(fig)
+            bucket_name = f"B{i}"
+            list_price = data[f"b{i}_lp"].mean()
+            count = data[f"b{i}_cnt"].sum()
+            count_distinct = data[f"b{i}_cntd"].sum()
+            
+            # Create a DataFrame for the current bucket
+            bucket_data = pd.DataFrame({"Bucket": [bucket_name],
+                                        "List Price": [list_price],
+                                        "Count": [count],
+                                        "Count Distinct": [count_distinct]})
+            
+            # Append the bucket's DataFrame to the list
+            aggregated_data_list.append(bucket_data)
+        
+        # Concatenate DataFrames from the list
+        aggregated_data = pd.concat(aggregated_data_list, ignore_index=True)
+        
+        # Create bar charts for List Price, Count, and Count Distinct
+        fig_lp = px.bar(aggregated_data, x="Bucket", y="List Price", title="List Price for All Buckets")
+        st.plotly_chart(fig_lp)
+
+        fig_count = px.bar(aggregated_data, x="Bucket", y="Count", title="Count for All Buckets")
+        st.plotly_chart(fig_count)
+
+        fig_count_distinct = px.bar(aggregated_data, x="Bucket", y="Count Distinct", title="Count Distinct for All Buckets")
+        st.plotly_chart(fig_count_distinct)
     else:
         missing_columns = [col for col in required_columns if col not in data.columns]
         st.error(f"Required columns {missing_columns} not found in the results.")
+
 
 #plot query 9
 def plot_query9(data, aggregator):
@@ -982,18 +1011,20 @@ def plot_query9(data, aggregator):
     # Group by store name and apply the custom aggregation
     grouped_data = data.groupby('s_store_name').agg({
         'store_sales_aggregator': custom_aggregator,
-        'store_returns_aggregator': custom_aggregator
+        'store_returns_aggregator': custom_aggregator,
+        'catalog_sales_aggregator':custom_aggregator
     }).reset_index()
     
     # Rename the columns with the custom aggregator function
     grouped_data.rename(columns={
         'store_sales_aggregator': f'{aggregator} Sales',
-        'store_returns_aggregator': f'{aggregator} Returns'
+        'store_returns_aggregator': f'{aggregator} Returns',
+        'catalog_sales_aggregator': f'{aggregator} Purchased'
     }, inplace=True)
     
     # Create a bar chart
-    fig = px.bar(grouped_data, x='s_store_name', y=[f'{aggregator} Sales', f'{aggregator} Returns'],
-                 color_discrete_sequence=['blue', 'red'], title=f'{aggregator} Sales and Returns by Store')
+    fig = px.bar(grouped_data, x='s_store_name', y=[f'{aggregator} Sales', f'{aggregator} Returns', f'{aggregator} Purchased'],
+                 color_discrete_sequence=['yellow', 'red','orange'], title=f'{aggregator} Sales and Returns by Store')
     
     # Customize the chart layout
     fig.update_layout(xaxis_title='Store Name', yaxis_title=f'{aggregator} Sales/Returns',
